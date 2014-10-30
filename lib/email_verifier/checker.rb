@@ -1,23 +1,42 @@
 require 'net/smtp'
 require 'dnsruby'
+require 'multimap'
+require 'rest-client'
+require 'json'
 
 class EmailVerifier::Checker
 
   ##
   # Returns server object for given email address or throws exception
-  # Object returned isn't yet connected. It has internally a list of 
+  # Object returned isn't yet connected. It has internally a list of
   # real mail servers got from MX dns lookup
   def initialize(address)
-    @email   = address
-    _, @domain  = address.split("@")
+    @email = address
+
+    @mailgun_public_api_key = EmailVerifier.config.mailgun_public_api_key
+    if @mailgun_public_api_key && !valid?(@email)
+      raise EmailVerifier::FailureException.new("#{address} is not valid")
+    end
+
+    @domain = address.split('@')[1]
     @servers = list_mxs @domain
     raise EmailVerifier::NoMailServerException.new("No mail server for #{address}") if @servers.empty?
-    @smtp    = nil
+    @smtp = nil
 
-    # this is because some mail servers won't give any info unless 
+    # this is because some mail servers won't give any info unless
     # a real user asks for it:
     @user_email = EmailVerifier.config.verifier_email
     _, @user_domain = @user_email.split "@"
+  end
+
+  def valid?(email)
+    url_params = Multimap.new
+    url_params[:address] = email
+    url_params[:api_key] = @mailgun_public_api_key
+    query_string = url_params.collect { |k, v| "#{k.to_s}=#{CGI::escape(v.to_s)}"}.join("&")
+    url = "https://api.mailgun.net/v2/address/validate?#{query_string}"
+
+    JSON.parse(RestClient.get(url))['is_valid']
   end
 
   def list_mxs(domain)
@@ -29,7 +48,7 @@ class EmailVerifier::Checker
     end
     mxs.sort_by { |mx| mx[:priority] }
   rescue Dnsruby::NXDomain
-    raise EmailVerifier::NoMailServerException.new("#{domain} does not exist") 
+    raise EmailVerifier::NoMailServerException.new("#{domain} does not exist")
   end
 
   def is_connected
@@ -66,11 +85,11 @@ class EmailVerifier::Checker
 
   def rcptto(address)
     ensure_connected
-   
+
     begin
       ensure_250 @smtp.rcptto(address)
     rescue => e
-      if e.message[/^550/]
+      if e.message[/^55/]
         return false
       else
         raise EmailVerifier::FailureException.new(e.message)

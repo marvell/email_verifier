@@ -17,6 +17,8 @@ Gem::Specification.new do |gem|
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.require_paths = ["lib"]
   gem.add_runtime_dependency(%q<rails>, [">= 3.0.0"])
+  gem.add_runtime_dependency(%q<multimap>, ["~> 1.1.3"])
+  gem.add_runtime_dependency(%q<rest-client>, ["~> 1.7.2"])
   gem.add_runtime_dependency(%q<dnsruby>, [">= 1.5"])
   gem.license = 'MIT'
 end
