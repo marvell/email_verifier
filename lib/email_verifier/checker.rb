@@ -19,6 +19,10 @@ class EmailVerifier::Checker
     end
 
     @domain = address.split('@')[1]
+    if EmailVerifier.config.domain_blacklist.include?(@domain)
+      raise EmailVerifier::FailureException.new("#{@domain} is in blacklist")
+    end
+
     @servers = list_mxs @domain
     raise EmailVerifier::NoMailServerException.new("No mail server for #{address}") if @servers.empty?
     @smtp = nil
